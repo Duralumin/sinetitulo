@@ -1,0 +1,71 @@
+var df = $.Deferred();
+            gapi.auth.authorize(
+            {client_id: constants.gapi.client_id, scope: 'https://www.googleapis.com/auth/drive', immediate: true}, function(res){
+                if(!gapi.auth || !gapi.auth.getToken()){
+                     df.reject("gapi.auth not exists");
+                }
+                for(var i=0;i<10000;i++){
+                    var s = "aaaa";
+                    s+="bbbbb";
+                }
+                console.log("auth success");
+                df.resolve(res);
+            }
+            );
+            return df.promise();
+        }
+
+        function prms_gapi_load_by(api,v){
+            var df = $.Deferred();
+            gapi.client.setApiKey(constants.gapi.api_key);
+            gapi.client.load(api, v, function(){
+                console.log("load success:" + api);
+                df.resolve("loaded:" + api);
+                });
+            return df.promise();
+        }
+        /*
+         * google drive file list( filter:folder id )
+         */
+        function list_files_with(cond){
+            var df = $.Deferred();
+            var initialRequest = gapi.client.drive.files.list(
+                {q:"'0B3pnnGKgIx1uWlZrY3RiTHBHcTA' in parents"}
+            );
+           initialRequest.execute(function(resp){
+            var cache = {};
+            console.log(resp.items);
+
+              $(resp.items).each(function(ix,v){
+                    cache[v.id] = v;
+                });
+               console.log(cache);
+               df.resolve(cache);
+            });
+           return df.promise();
+        }
+        /**
+         * google drive sdk (create folder sample)
+         */
+        function createFolder(folderName){
+            var body = {
+              'title': folderName,
+              'mimeType': "application/vnd.google-apps.folder"
+            };
+            var request = gapi.client.drive.files.insert({
+              'resource': body
+            });
+            request.execute(function(resp) {
+              console.log('Folder ID: ' + resp.id);
+            });
+        }
+
+        function load_APIs(){
+            prms_gapi_auth().done(function(res){
+                console.log("auth callback");
+                $.when(prms_gapi_load_by("drive","v2")).then(function(data){
+                    //事前条件： authorize が完了    
+                    console.log(data);
+                })    
+            });
+        }

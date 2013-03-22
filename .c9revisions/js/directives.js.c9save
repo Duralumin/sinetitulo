@@ -1,0 +1,1 @@
+{"ts":1363794032545,"silentsave":true,"restoring":false,"patch":[[{"diffs":[[1,"'use strict';\n\n/* Directives */\n\n\nangular.module('myApp.directives', []).\n  directive('appVersion', ['version', function(version) {\n    return function(scope, elm, attrs) {\n      elm.text(version);\n    };\n  }]);\n"]],"start1":0,"start2":0,"length1":0,"length2":212}]],"length":212}
