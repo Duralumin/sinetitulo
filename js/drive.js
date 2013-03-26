@@ -1,13 +1,6 @@
 function Drive($scope, $q) {
 
 
-    var clientId =  '564722618052.apps.googleusercontent.com';
-    var apiKey = 'AIzaSyDdWBZeTLWoFINo7sYIoI1ejcfusYLk9gQ';
-    var scopes = ['https://www.googleapis.com/auth/drive', 'https://spreadsheets.google.com/feeds'];
-
-    var fileId = '0AtIYt_R27UabdDBKTDlETDhmOENyakc2UGdxeDRCdFE';
-
-    var stFolderId = '0B9IYt_R27UabRFN0N2pMSVlqWVE';
 
 
 
@@ -15,17 +8,25 @@ function Drive($scope, $q) {
     this.login = function() {
         var deferred = $q.defer();
         // Step 2: Reference the API key
-        gapi.client.setApiKey(this.apiKey);
+        gapi.client.setApiKey($scope.drive.apiKey);
         window.setTimeout(function() {
             checkAuth(deferred);
         }, 1);
         return deferred.promise;
     }
 
+     this.listCategories = function() {
+        var deferred = $q.defer();
+        makeApiCall(function() {
+            listSpreadsInFolder(deferred);
+        })
+        return deferred.promise;
+    }
+
     function checkAuth(deferred) {
         gapi.auth.authorize({
-            client_id: clientId,
-            scope: scopes,
+            client_id: $scope.drive.clientId,
+            scope: $scope.drive.scopes,
             immediate: true
         }, function(authResult) {
             handleAuthResult(deferred, authResult);
@@ -34,21 +35,75 @@ function Drive($scope, $q) {
 
     function handleAuthResult(deferred, authResult) {
         if (authResult && !authResult.error) {
-            loadApi(deferred);
+            //$scope.$apply(function() {deferred.resolve(authResult);});
+            $scope.$apply(deferred.resolve);
         }
         else {
             $scope.$apply(deferred.reject);
         }
     }
 
-    function loadApi(deferred) {
-        gapi.client.load('drive', 'v2', function() {
-            var request = gapi.client.drive.files.get({
-                fileId: fileId
-            });
-            $scope.$apply(function() {deferred.resolve(request)});
+    function makeApiCall(callback) {
+        gapi.client.load('drive', 'v2', callback);
+    }
+
+
+    function listSpreadsInFolder(deferred) {
+
+        var request = gapi.client.drive.children.list({
+            folderId: $scope.drive.stFolderId,
+            q: "mimeType = 'application/vnd.google-apps.spreadsheet'"
+        });
+        request.execute(function(data) {
+            var categories = [];
+            var categoriesNumber = 0;
+            if (data != null && data.items != null) {
+                categoriesNumber = data.items.length;
+            }
+            if (categoriesNumber == 0) {
+                $scope.$apply(function() {
+                    deferred.resolve(categories);
+                });
+            }
+            else {
+                angular.forEach(data.items, getSpreadInformation(deferred, categories,categoriesNumber));
+            }
         });
     }
+
+    function getSpreadInformation(deferred, categories,categoriesNumber) {
+        return function(data, index) {
+            var id = data.id;
+            var request = gapi.client.drive.files.get({
+                fileId: id
+            });
+            request.execute(handleSpreadInformation(deferred,categories,categoriesNumber,index));
+        }
+    }
+
+    function handleSpreadInformation(deferred,categories,categoriesNumber,index) {
+        return function(data) {
+            var tag = data.description;
+            if (!tag) {
+                tag = data.title;
+            }
+            var key = data.id;
+            var category = {
+                name: tag,
+                key: key,
+                entities: []
+            };
+            categories.push(category);
+
+            if ((categoriesNumber - 1) == index) {
+                $scope.$apply(function() {
+                    deferred.resolve(categories);
+                });
+            }
+        }
+    }
+
+
 };
 
 
