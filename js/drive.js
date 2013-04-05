@@ -9,7 +9,7 @@ function Drive($scope, $q, $http) {
             checkAuth(deferred);
         }, 1);
         return deferred.promise;
-    }
+    };
 
      this.listCategories = function() {
         var deferred = $q.defer();
@@ -17,7 +17,7 @@ function Drive($scope, $q, $http) {
             listSpreadsInFolder(deferred,$scope.drive.stFolderId);
         })
         return deferred.promise;
-    }
+    };
 
      this.listEntities = function(spreadId) {
         var deferred = $q.defer();
@@ -155,8 +155,39 @@ function Drive($scope, $q, $http) {
         });
     }
 
+    function newWeapon(row) {
+        var weapon = {};
+        weapon.name = row[2];
+        weapon.size = row[3];
+        weapon.n = row[4];
+        weapon.ab = row[5];
+        weapon.ap = row[6];
+        weapon.ad = row[7];
+        weapon.limits = row[8];
+        weapon.arcs = row[9];
+        weapon.rof = row[10];
+        weapon.range = row[11];
+        return weapon;
+    }
+
+    function newSubsystem(row) {
+        var newSubsystem = {name : row[2], blocks : []};
+        for (var i=3; i<row.length; i++) {
+            var squares = row[i];
+            if (squares != null && squares.length > 0) {
+                var squaresObj = angular.fromJson(squares);
+                var block = [];
+                for (var j=0;j<squaresObj.length; j++) {
+                    block.push({value : squaresObj[j]});
+                }
+                newSubsystem.blocks.push(block);
+            }
+        }
+        return newSubsystem;
+    }
+
     function makeDetailsFromCellMatrix(cellMatrix) {
-        var entityDetails = {systems : [], weapons : []};
+        var entityDetails = {systems : []};
         var currentSection = "generic";
         for (var r = 0; r<cellMatrix.length; r++) {
             var row = cellMatrix[r];
@@ -167,34 +198,30 @@ function Drive($scope, $q, $http) {
                 entityDetails.systems.push(newSystem);
                 currentSection = "system";
             } else if (row[0] == "weapons") {
-
+               entityDetails.weapons = [];
+                currentSection = "weapons";
             } else if (currentSection == "system") {
                 var subsystemName = row[2];
                 if (subsystemName != null) {
-                    var newSubsystem = {name : subsystemName, blocks : []};
-                    for (var i=3; i<row.length; i++) {
-                        var squares = row[i];
-                        if (squares != null && squares.length > 0) {
-                            var squaresObj = angular.fromJson(squares);
-                            var block = [];
-                            for (var j=0;j<squaresObj.length; j++) {
-                                block.push({value : squaresObj[j]});
-                            }
-                            newSubsystem.blocks.push(block);
-                        }
-                    }
+                    var newSubsystem = newSubsystem(row);
+
                     var l = entityDetails.systems.length;
                     entityDetails.systems[l-1].subsystems.push(newSubsystem);
                 }
             } else if (currentSection == "weapons") {
+                var weaponName = row[2];
+                if (weaponName != null) {
+                    var newWeapon = newWeapon(row);
 
-                var l = entityDetails.weapons.length;
-                entityDetails.weapons[l-1].subsystems.push(newSubsystem);
+                    entityDetails.weapons.push(newWeapon);
+                }
             }
         }
         return entityDetails;
     }
-
+                                               /*
+                                               * Name	Size	N°	AB	AP	AD	Limits	Archs	ROF	Range
+                                                ML AP	9	5	12	4	8	-1/0	PP/SS	1	*/
     function fillCellMatrix(cellMatrix) {
         return function(cell,index) {
             var row = parseInt(cell.gs$cell.row);
@@ -250,147 +277,6 @@ function Drive($scope, $q, $http) {
 
 
 };
-
-
-
-///////////////
-/*
-    Drive.prototype.auth = function() {
-        var deferred = $q.defer();
-
-        gapi.client.setApiKey(drive.apiKey);
-        gapi.auth.authorize({client_id: drive.clientId, scope: drive.scopes, immediate: true}, function() {
-            if (authResult && !authResult.error) {
-            drive.makeApiCall(deferred);
-        } else {
-            drive.requestAuth(deferred);
-        }
-        });
-    }
-
-
-
-     function requestAuth(deferred) {
-        gapi.auth.authorize({client_id: drive.clientId, scope: drive.scopes, immediate: false}, drive.handleAuthResult);
-
-    },
-
-    init : function() {
-        drive.checkAuth();
-    },
-
-     handleClientLoad : function() {
-        gapi.client.setApiKey(drive.apiKey);
-        window.setTimeout(drive.checkAuth,1);
-    },
-
-    checkAuth : function() {
-        gapi.client.setApiKey(drive.apiKey);
-        gapi.auth.authorize({client_id: drive.clientId, scope: drive.scopes, immediate: true}, drive.handleAuthResult);
-    },
-
-    handleAuthResult : function(authResult) {
-        if (authResult && !authResult.error) {
-            //console.log("authorized");
-            drive.makeApiCall();
-        } else {
-            drive.requestAuth();
-        }
-    },
-
-    requestAuth : function(event) {
-        gapi.auth.authorize({client_id: drive.clientId, scope: drive.scopes, immediate: false}, drive.handleAuthResult);
-
-    },
-
-    makeApiCall : function() {
-      gapi.client.load('drive', 'v2', function() {
-          var request = gapi.client.drive.files.get({fileId : drive.fileId});
-          request.execute(drive.initSTDB);
-        });
-    },
-
-    initSTDB : function() {
-        drive.listDocsInSTFolder();
-    },
-
-    listDocsInSTFolder : function() {
-        var request = gapi.client.drive.children.list({folderId : drive.stFolderId, q : "mimeType = 'application/vnd.google-apps.spreadsheet'"});
-        request.execute(function(data) {
-            var len = 0;
-            if (data != null && data.items != null) {
-                len = data.items.length;
-            }
-            if (len == 0) {
-                drive.categoriesInitializedCallback(data.items);
-            } else {
-                $(data.items).each(function(index) {
-                   // console.log(index);
-                    var id = this.id;
-                    var request = gapi.client.drive.files.get({fileId : id});
-                    request.execute(function(data) {
-                        var tag = data.description;
-                        if (!tag) {
-                            tag = data.title;
-                        }
-                        var key = data.id;
-                        var category = {name : tag, key : key, entities : []};
-                        drive.info.categories.push(category);
-                        drive.mapCategoriesByKey[key] = category;
-
-                        callbackIfLast(index, len, drive.info.categories, drive.categoriesInitializedCallback);
-
-                    });
-                });
-            }
-        });
-    },
-
-
-    listSheetsInSpread : function(key, callback) {
-        drive.sprApiGet('worksheets/'+key).done(function(data) {
-            var entries = data.feed.entry;
-            var len = entries.length;
-            var category = drive.mapCategoriesByKey[key];
-            $(entries).each(function(index) {
-                var key = category.key + '_' + index;
-                var entity = {};
-                entity.key = key;
-                entity.name = this.title.$t;
-                drive.mapEntitiesByKey[key] = entity;
-                category.entities.push(entity);
-
-                callbackIfLast(index, len, category.entities, callback);
-
-            });
-            //console.log(data);
-
-
-        });
-    },
-
-    listSheetRows : function(spreadKey, sheetId, callback) {
-        spreadKey = "0AtIYt_R27UabdDBKTDlETDhmOENyakc2UGdxeDRCdFE";
-        sheetId = "1";
-        drive.sprApiGet('list/' + spreadKey+ '/'+sheetId).done(callback);
-    },
-
-
-    sprApiGet : function(url) {
-        if (drive.token == "") {
-            drive.token = gapi.auth.getToken().access_token;
-        }
-        return $.get('https://spreadsheets.google.com/feeds/' + url + '/private/full?alt=json&access_token='+drive.token);
-    }
-
-}
-
-function callbackIfLast(index, length, data, callback) {
-    if ((length-1) == index && callback != null) {
-        callback(data);
-    }
-}
-
 
 /*
 function loadClient() {
