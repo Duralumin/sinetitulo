@@ -1,8 +1,4 @@
-function Drive($scope, $q) {
-
-
-
-
+function Drive($scope, $q, $http) {
 
     ///////////////////////
     this.login = function() {
@@ -18,10 +14,27 @@ function Drive($scope, $q) {
      this.listCategories = function() {
         var deferred = $q.defer();
         makeApiCall(function() {
-            listSpreadsInFolder(deferred);
+            listSpreadsInFolder(deferred,$scope.drive.stFolderId);
         })
         return deferred.promise;
     }
+
+     this.listEntities = function(spreadId) {
+        var deferred = $q.defer();
+        makeApiCall(function() {
+            listSheetsInSpread(deferred,spreadId);
+        });
+        return deferred.promise;
+    }
+
+    this.fetchEntityDetails = function(spreadId, sheetIndex) {
+        var deferred = $q.defer();
+        makeApiCall(function() {
+            getSheetFeed(deferred,spreadId, sheetIndex)
+        });
+        return deferred.promise;
+    }
+    ////////////////////
 
     function checkAuth(deferred) {
         gapi.auth.authorize({
@@ -48,10 +61,10 @@ function Drive($scope, $q) {
     }
 
 
-    function listSpreadsInFolder(deferred) {
+    function listSpreadsInFolder(deferred, folderId) {
 
         var request = gapi.client.drive.children.list({
-            folderId: $scope.drive.stFolderId,
+            folderId: folderId,
             q: "mimeType = 'application/vnd.google-apps.spreadsheet'"
         });
         request.execute(function(data) {
@@ -81,27 +94,159 @@ function Drive($scope, $q) {
         }
     }
 
-    function handleSpreadInformation(deferred,categories,categoriesNumber,index) {
+    function handleSpreadInformation(deferred,categories,numberOfSpreads,index) {
         return function(data) {
             var tag = data.description;
             if (!tag) {
                 tag = data.title;
             }
-            var key = data.id;
+            var spreadId = data.id;
             var category = {
                 name: tag,
-                key: key,
+                spreadId : spreadId,
                 entities: []
             };
             categories.push(category);
 
-            if ((categoriesNumber - 1) == index) {
+            if ((numberOfSpreads - 1) == index) {
                 $scope.$apply(function() {
                     deferred.resolve(categories);
                 });
             }
         }
     }
+
+     function listSheetsInSpread(deferred, spreadId) {
+        spreadApiGet('worksheets/'+spreadId).success(function(data) {
+            var entries = data.feed.entry;
+            var numberOfSheets = entries.length;
+            var entities = [];
+            angular.forEach(entries, getSheetInformation(deferred, entities, numberOfSheets, spreadId));
+        });
+    }
+
+    function getSheetInformation(deferred, entities, numberOfSheets, spreadId) {
+        return function(data, index) {
+
+            var newEntity = {};
+            newEntity.spreadId = spreadId;
+            newEntity.sheetId = index+1;
+            newEntity.name = data.title.$t;
+            entities.push(newEntity);
+            if ((numberOfSheets-1) == index) {
+                deferred.resolve(entities);
+            }
+        }
+    }
+
+    function getSheetFeed(deferred, spreadId, sheetId) {
+        //list or cells
+        spreadApiGet('cells/' + spreadId+ '/'+sheetId).success(function(data) {
+            var cells = data.feed.entry;
+            var numberOfCells = cells.length;
+            var cellMatrix = [[]];
+
+            angular.forEach(cells, fillCellMatrix(cellMatrix));
+
+            var details = makeDetailsFromCellMatrix(cellMatrix);
+
+
+            deferred.resolve(details);
+        });
+    }
+
+    function makeDetailsFromCellMatrix(cellMatrix) {
+        var entityDetails = {systems : [], weapons : []};
+        var currentSection = "generic";
+        for (var r = 0; r<cellMatrix.length; r++) {
+            var row = cellMatrix[r];
+            if (row[0] == "data") {
+                entityDetails.data = angular.fromJson(row[1]);
+            } else if (row[0] == "system") {
+                var newSystem = {level : row[1], subsystems : []};
+                entityDetails.systems.push(newSystem);
+                currentSection = "system";
+            } else if (row[0] == "weapons") {
+
+            } else if (currentSection == "system") {
+                var subsystemName = row[2];
+                if (subsystemName != null) {
+                    var newSubsystem = {name : subsystemName, blocks : []};
+                    for (var i=3; i<row.length; i++) {
+                        var squares = row[i];
+                        if (squares != null && squares.length > 0) {
+                            var squaresObj = angular.fromJson(squares);
+                            var block = [];
+                            for (var j=0;j<squaresObj.length; j++) {
+                                block.push({value : squaresObj[j]});
+                            }
+                            newSubsystem.blocks.push(block);
+                        }
+                    }
+                    var l = entityDetails.systems.length;
+                    entityDetails.systems[l-1].subsystems.push(newSubsystem);
+                }
+            } else if (currentSection == "weapons") {
+
+                var l = entityDetails.weapons.length;
+                entityDetails.weapons[l-1].subsystems.push(newSubsystem);
+            }
+        }
+        return entityDetails;
+    }
+
+    function fillCellMatrix(cellMatrix) {
+        return function(cell,index) {
+            var row = parseInt(cell.gs$cell.row);
+            var col = parseInt(cell.gs$cell.col);
+            var inputValue = cell.gs$cell.inputValue;
+            resizeMatrix(cellMatrix, row, col);
+            cellMatrix[row-1][col-1] = inputValue;
+        }
+    }
+
+    function resizeMatrix(matrix, row, col) {
+        var colSize = matrix[0].length;
+        var rowSize = matrix.length;
+        var colDiff = col-colSize;
+        var rowDiff = row-rowSize;
+        for (var i=0;i<colDiff; i++) {
+            addMatrixCol(matrix);
+        }
+        for (var i=0;i<rowDiff; i++) {
+            addMatrixRow(matrix);
+        }
+    }
+
+    function addMatrixRow(matrix) {
+        var colSize = matrix[0].length;
+        matrix.push(new Array(colSize));
+    }
+
+    function addMatrixCol(matrix) {
+        var rowSize = matrix.length;
+        for(var i=0;i<rowSize; i++) {
+            matrix[i].push(null);
+        }
+    }
+
+    function tryJsonParse(input) {
+        var result = {};
+        try {
+            result =  angular.fromJson(input);
+        } catch (e) {
+
+        }
+        return result;
+    }
+
+    function spreadApiGet(url) {
+     /*   if (drive.token == "") {
+            drive.token = gapi.auth.getToken().access_token;
+        }*/
+        return $http.get('https://spreadsheets.google.com/feeds/' + url + '/private/full?alt=json&access_token='+gapi.auth.getToken().access_token);
+    }
+
 
 
 };

@@ -1,1 +1,2 @@
 {"ts":1363794053227,"silentsave":true,"restoring":false,"patch":[[{"diffs":[[1,"'use strict';\n\n/* Services */\n\n\n// Demonstrate how to register services\n// In this case it is a simple value service.\nangular.module('myApp.services', []).\n  value('version', '0.1');\n"]],"start1":0,"start2":0,"length1":0,"length2":183}]],"length":183}
+{"contributors":[],"silentsave":false,"ts":1364372537825,"patch":[[{"diffs":[[0,"le('"],[-1,"myApp"],[1,"SineTitulo"],[0,".ser"]],"start1":130,"start2":130,"length1":13,"length2":18}]],"length":188,"saved":false}

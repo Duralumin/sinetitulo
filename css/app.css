@@ -28,3 +28,35 @@
   content: "";
   padding: 0;
 }
+
+.block-square-empty {
+    background: transparent url('img/ST_squares.png') -2px -2px no-repeat;
+    display: inline-block;
+    height:23px;
+    width:23px;
+
+}
+
+.block-square-temp {
+    background: transparent url('img/ST_squares.png') -2px -26px no-repeat;
+    display: inline-block;
+    height:23px;
+    width:23px;
+
+}
+
+.block-square-confirmed {
+    background: transparent url('img/ST_squares.png') -2px -50px no-repeat;
+    display: inline-block;
+    height:23px;
+    width:23px;
+
+}
+
+.block-square-critical {
+    background: transparent url('img/ST_squares.png') -2px -74px no-repeat;
+    display: inline-block;
+    height:23px;
+    width:23px;
+
+}
